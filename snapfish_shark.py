@@ -144,6 +144,8 @@ def get_asset_information(token):
                 # represented in milliseconds. They are divided by 1000 to get a
                 # POSIX timestamp, which is represented in seconds.
                 "date": raw_album["createDate"] / 1000,
+                # Snapfish album names can contain invalid path characters, so
+                # they must be normalized before being made into directories.
                 "directory_path": os.path.join(
                     collection["name"], get_valid_filename(album_name)
                 ),
