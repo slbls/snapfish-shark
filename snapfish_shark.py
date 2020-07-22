@@ -113,7 +113,6 @@ def download_assets():
 
     for collection in collections:
         collection_name = collection["name"]
-        collection_date = collection["date"]
         albums = collection["albums"]
         albums_count = len(albums)
         print(f"""{collection_name} ({albums_count} albums)""")
