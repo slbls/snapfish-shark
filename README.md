@@ -5,24 +5,17 @@
 ## Usage
 
 ```
-usage: snapfish_shark.py [-h] -t token
+usage: snapfish_shark.py [-h] -e email -p password
 
 🦈 Bare-bones Snapfish photo downloader.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -t token, --token token
-                        Snapfish authentication token.
+  -e email, --email email
+                        Snapfish email address.
+  -p password, --password password
+                        Snapfish password.
 ```
-
-### Retrieving the Authentication Token
-
-1. Extract the `access_token` from the Snapfish website (requires being logged
-   in) by opening up the browser's devtools.
-2. Navigate to the Network tab.
-3. Find and select a JSON response.
-4. Locate the response's `access_token` request header (the value should start
-   with `OAuth sf_v1a;`).
 
 ### Terminology
 
@@ -60,7 +53,3 @@ cwd
 -   Because Snapfish album names can contain characters that are invalid in file
     paths, folders created for each album are named using a normalized version
     of the album name.
-
--   The authentication token may expire while snapchat-shark is running. If the
-    program fails with "error connecting to Snapfish", obtain a new token using
-    the same process as before.
