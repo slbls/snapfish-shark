@@ -29,9 +29,7 @@ connection = HTTPSConnection("assets.snapfish.com")
 
 
 class SnapfishEndpoint(Enum):
-    ASSET_INFORMATION = (
-        "/pict/v2/collection/monthIndex?limit=0&skip=0&projection=assetIdList,userTags"
-    )
+    ASSET_INFORMATION = "/pict/v2/collection/monthIndex?limit=0&skip=0&projection=createDate,assetType,files,assetIdList,userTags,updateDate,systemTags"
     PHOTOS = "/pict/v2/collection/{}/assets?assetType=PICTURE"
 
 
@@ -80,6 +78,7 @@ def get_asset_information():
             album = {
                 "id": raw_album["id"],
                 "name": album_name,
+                "date": raw_album["createDate"] / 1000,
                 "directory_path": os.path.join(
                     collection["name"], get_valid_filename(album_name)
                 ),
@@ -93,6 +92,9 @@ def get_asset_information():
                     {
                         "id": photo_id,
                         "link": raw_photo["files"][0]["url"],
+                        "date": raw_photo["dateTaken"] / 1000
+                        if raw_photo["dateTaken"]
+                        else collection["date"],
                         "file_path": f"""{os.path.join(
                             album["directory_path"], str(photo_id)
                         )}.jpg""",
@@ -126,8 +128,9 @@ def download_assets():
 
             for photo in photos:
                 photo_file_path = photo["file_path"]
+                photo_date = photo["date"]
                 if os.path.isfile(photo_file_path):
-                    set_file_timestamp(photo_file_path, collection_date)
+                    set_file_timestamp(photo_file_path, photo_date)
                     continue
 
                 try:
@@ -137,7 +140,7 @@ def download_assets():
                 except HTTPError:
                     pass
                 else:
-                    set_file_timestamp(photo_file_path, collection_date)
+                    set_file_timestamp(photo_file_path, photo_date)
 
             if i == albums_count - 1:
                 print("\n")
