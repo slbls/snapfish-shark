@@ -123,16 +123,26 @@ def get_asset_information(token):
     for key, value in raw_collections_items:
         collection = {
             "name": key,
+            # Collections don't have an actual date associated with them. In
+            # place of that, their name (which is always a year-month string) is
+            # parsed into a timestamp.
             "date": datetime.strptime(key, "%Y-%m").timestamp(),
             "albums": [],
         }
 
+        # Albums are also referred to as collections by Snapfish, hence why
+        # they are accessed through a "collectionList" property that exists on
+        # each collection. For the sake of clarity, this project refers to a
+        # year-month set of albums as a collection and an album as an album.
         raw_albums = value["collectionList"]
         for raw_album in raw_albums:
             album_name = raw_album["userTags"][0]["value"]
             album = {
                 "id": raw_album["id"],
                 "name": album_name,
+                # Raw album dates are stored as JavaScript timestamps, which are
+                # represented in milliseconds. They are divided by 1000 to get a
+                # POSIX timestamp, which is represented in seconds.
                 "date": raw_album["createDate"] / 1000,
                 "directory_path": os.path.join(
                     collection["name"], get_valid_filename(album_name)
@@ -147,9 +157,12 @@ def get_asset_information(token):
                     {
                         "id": photo_id,
                         "link": raw_photo["files"][0]["url"],
+                        # Not all photos have date taken information, often
+                        # existing as a value of 0 or None. Resultantly, the
+                        # photo's date falls back to the album's creation date.
                         "date": raw_photo["dateTaken"] / 1000
                         if raw_photo["dateTaken"]
-                        else collection["date"],
+                        else album["date"],
                         "file_path": f"""{os.path.join(
                             album["directory_path"], str(photo_id)
                         )}.jpg""",
