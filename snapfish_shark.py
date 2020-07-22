@@ -30,7 +30,7 @@ connection = HTTPSConnection("assets.snapfish.com")
 
 class SnapfishEndpoint(Enum):
     ASSET_INFORMATION = (
-        "/pict/v2/collection/monthIndex?limit={}&skip=0&projection=assetIdList,userTags"
+        "/pict/v2/collection/monthIndex?limit=0&skip=0&projection=assetIdList,userTags"
     )
     PHOTOS = "/pict/v2/collection/{}/assets?assetType=PICTURE"
 
@@ -49,8 +49,8 @@ def send_request(endpoint, *args):
     return response
 
 
-def get_raw_collections(limit=0):
-    return json.loads(send_request(SnapfishEndpoint.ASSET_INFORMATION, limit).read())[
+def get_raw_collections():
+    return json.loads(send_request(SnapfishEndpoint.ASSET_INFORMATION).read())[
         "entityMap"
     ]
 
@@ -61,8 +61,8 @@ def get_raw_photos(album_id):
     ]
 
 
-def get_asset_information(collection_limit=0):
-    raw_collections = get_raw_collections(collection_limit)
+def get_asset_information():
+    raw_collections = get_raw_collections()
     raw_collections_items = tqdm(raw_collections.items())
     raw_collections_items.set_description("Fetching asset information")
 
@@ -106,7 +106,7 @@ def get_asset_information(collection_limit=0):
     return collections
 
 
-def download_assets(collection_limit=0):
+def download_assets():
     collections = get_asset_information()
 
     for collection in collections:
@@ -144,7 +144,7 @@ def download_assets(collection_limit=0):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser(description="Download Snapfish photos.")
+    parser = ArgumentParser(description="🦈 Bare-bones Snapfish photo downloader.")
     parser.add_argument(
         "-t",
         "--token",
@@ -152,16 +152,9 @@ if __name__ == "__main__":
         help="Snapfish authentication token.",
         required=True,
     )
-    parser.add_argument(
-        "-l",
-        "--limit",
-        metavar="limit",
-        help="Sets the maximum number of collections to download.",
-        default=0,
-    )
 
     args = parser.parse_args()
     tqdm = partial(std_tqdm, dynamic_ncols=True)
     token = args.token
 
-    download_assets(args.limit)
+    download_assets()
