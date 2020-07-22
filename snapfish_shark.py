@@ -1,8 +1,9 @@
 import urllib.request
+import urllib.parse
 import json
 import os
 import re
-from unicodedata import normalize as unicode_normalize
+import unicodedata
 from http.client import HTTPSConnection
 from urllib.error import HTTPError
 from argparse import ArgumentParser
@@ -14,48 +15,86 @@ from enum import Enum
 
 
 def get_valid_filename(value):
-    value = unicode_normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    value = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    )
     value = re.sub(r"[^\w\s-]", "", value.lower())
     return re.sub(r"[-\s]+", "-", value).strip("-_")
 
 
-token = None
-connection = HTTPSConnection("assets.snapfish.com")
+authentication_connection = HTTPSConnection("www.snapfish.com")
+asset_connection = HTTPSConnection("assets.snapfish.com")
 
 
-class SnapfishEndpoint(Enum):
-    ASSET_INFORMATION = "/pict/v2/collection/monthIndex?limit=0&skip=0&projection=createDate,assetType,files,assetIdList,userTags,updateDate,systemTags"
-    PHOTOS = "/pict/v2/collection/{}/assets?assetType=PICTURE"
-
-
-def send_request(endpoint, *args):
-    connection.request(
-        "GET", endpoint.value.format(*args), None, {"access_token": token}
+def get_authentication_token(email, password):
+    authentication_connection.request(
+        "POST",
+        "/loginto?submit=true&componentID=1395868004571",
+        urllib.parse.urlencode(
+            {
+                "iwPreActions": "submit",
+                "next": "https://www.snapfish.com/home",
+                "EmailAddress": email,
+                "Password": password,
+            }
+        ).encode(),
+        {"Content-Type": "application/x-www-form-urlencoded",},
     )
 
-    response = connection.getresponse()
-    if not response.status == 200:
+    response = authentication_connection.getresponse()
+    if not response.status == 302:
         raise RuntimeError(
-            f"""error connecting to Snapfish when fetching {"collection and album information" if endpoint is SnapfishEndpoint.ASSET_INFORMATION else "photo information" } (HTTP {response.status} {response.reason})."""
+            f"""error connecting to Snapfish when fetching authentication token (HTTP {response.status} {response.reason})."""
         )
 
-    return response
+    token = None
+    for key, value in response.headers.items():
+        if key != "Set-Cookie" or not value.startswith("oa2=sf_v1a"):
+            continue
+
+        token = urllib.parse.unquote(
+            value.split(";")[0].replace("oa2=sf_v1a", "OAuth sf_v1a")
+        )
+
+    return token
 
 
-def get_raw_collections():
-    return json.loads(send_request(SnapfishEndpoint.ASSET_INFORMATION).read())[
-        "entityMap"
-    ]
+def get_raw_collections(token):
+    asset_connection.request(
+        "GET",
+        "/pict/v2/collection/monthIndex?limit=0&skip=0&projection=createDate,assetType,files,assetIdList,userTags,updateDate,systemTags",
+        None,
+        {"access_token": token},
+    )
+
+    response = asset_connection.getresponse()
+    if not response.status == 200:
+        raise RuntimeError(
+            f"error connecting to Snapfish when fetching collection and album information (HTTP {response.status} {response.reason})."
+        )
+
+    return json.loads(response.read())["entityMap"]
 
 
-def get_raw_photos(album_id):
-    return json.loads(send_request(SnapfishEndpoint.PHOTOS, album_id).read())[
-        "entities"
-    ]
+def get_raw_photos(token, album_id):
+    asset_connection.request(
+        "GET",
+        f"/pict/v2/collection/{album_id}/assets?assetType=PICTURE",
+        None,
+        {"access_token": token},
+    )
+
+    response = asset_connection.getresponse()
+    if not response.status == 200:
+        raise RuntimeError(
+            f"error connecting to Snapfish when fetching photo information (HTTP {response.status} {response.reason})."
+        )
+
+    return json.loads(response.read())["entities"]
 
 
-def get_asset_information():
-    raw_collections = get_raw_collections()
+def get_asset_information(token):
+    raw_collections = get_raw_collections(token)
     raw_collections_items = tqdm(raw_collections.items())
     raw_collections_items.set_description("Fetching asset information")
 
@@ -80,7 +119,7 @@ def get_asset_information():
                 "photos": [],
             }
 
-            raw_photos = get_raw_photos(album["id"])
+            raw_photos = get_raw_photos(token, album["id"])
             for raw_photo in raw_photos:
                 photo_id = raw_photo["id"]
                 album["photos"].append(
@@ -103,8 +142,8 @@ def get_asset_information():
     return collections
 
 
-def download_assets():
-    collections = get_asset_information()
+def download_assets(token):
+    collections = get_asset_information(token)
 
     for collection in collections:
         collection_name = collection["name"]
@@ -122,7 +161,6 @@ def download_assets():
 
             for photo in photos:
                 photo_file_path = photo["file_path"]
-                photo_date = photo["date"]
 
                 try:
                     urllib.request.urlretrieve(
@@ -138,15 +176,13 @@ def download_assets():
 if __name__ == "__main__":
     parser = ArgumentParser(description="🦈 Bare-bones Snapfish photo downloader.")
     parser.add_argument(
-        "-t",
-        "--token",
-        metavar="token",
-        help="Snapfish authentication token.",
-        required=True,
+        "-e", "--email", metavar="email", help="Snapfish email address.", required=True,
+    )
+    parser.add_argument(
+        "-p", "--password", metavar="password", help="Snapfish password.", required=True
     )
 
     args = parser.parse_args()
     tqdm = partial(std_tqdm, dynamic_ncols=True)
-    token = args.token
 
-    download_assets()
+    download_assets(get_authentication_token(args.email, args.password))
