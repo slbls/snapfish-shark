@@ -6,11 +6,11 @@ import re
 from http.client import HTTPSConnection
 from urllib.error import HTTPError
 from argparse import ArgumentParser
-from win32_setctime import setctime
 from datetime import datetime
 from functools import partial
 from tqdm import tqdm as std_tqdm
 from enum import Enum
+
 
 # Sourced from Django
 # https://github.com/django/django/blob/master/django/utils/text.py#L222
