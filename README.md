@@ -56,6 +56,6 @@ cwd
 
 ## Disclaimer
 
-Snapfish' endpoints are subject to change at any time. Should they change, it is
+Snapfish endpoints are subject to change at any time. Should they change, it is
 likely snapfish-shark will stop working until it is updated. If errors arise,
 please [create an issue](https://github.com/slbls/snapfish-shark/issues/new).
