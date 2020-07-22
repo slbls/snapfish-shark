@@ -3,7 +3,6 @@ import urllib.parse
 import json
 import os
 import re
-import unicodedata
 from http.client import HTTPSConnection
 from urllib.error import HTTPError
 from argparse import ArgumentParser
@@ -13,13 +12,11 @@ from functools import partial
 from tqdm import tqdm as std_tqdm
 from enum import Enum
 
-
+# Sourced from Django
+# https://github.com/django/django/blob/master/django/utils/text.py#L222
 def get_valid_filename(value):
-    value = (
-        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
-    )
-    value = re.sub(r"[^\w\s-]", "", value.lower())
-    return re.sub(r"[-\s]+", "-", value).strip("-_")
+    value = str(value).strip().replace(" ", "_")
+    return re.sub(r"(?u)[^-\w.]", "", value)
 
 
 authentication_connection = HTTPSConnection("www.snapfish.com")
@@ -27,6 +24,12 @@ asset_connection = HTTPSConnection("assets.snapfish.com")
 
 
 def get_authentication_token(email, password):
+    # submit=true and componentID=1395868004571 (URL parameters), and
+    # "iwPreActions:" "submit" and "next": "https://www.snapfish.com/home"
+    # (request headers) are all required outside of an email and password for
+    # the login request to work. All login requests seem to use the same
+    # component ID. Where said ID originates from and what exactly it
+    # represents is a mystery for another day.
     authentication_connection.request(
         "POST",
         "/loginto?submit=true&componentID=1395868004571",
@@ -42,11 +45,22 @@ def get_authentication_token(email, password):
     )
 
     response = authentication_connection.getresponse()
+
+    # A response status other than 302 indicates the login did not contain the
+    # necessary information to fetch an authentication token or that the request
+    # was unsuccessful (due to invalid credentials, network error, etc.).
     if not response.status == 302:
         raise RuntimeError(
             f"""error connecting to Snapfish when fetching authentication token (HTTP {response.status} {response.reason})."""
         )
 
+    # The authentication token is not returned in the response body. Rather, it
+    # exists in a Set-Cookie response header containing a value starting with
+    # "oa2=sf_v1a". Said value holds additional, URL encoded information
+    # separated by semicolons, where the token is the first element. Valid
+    # authentication tokens in Snapfish endpoints are prefixed with
+    # "Oauth sf_v1a", so the token contained in the header value must have its
+    # "oa2=sf_v1a" prefix replaced accordingly.
     token = None
     for key, value in response.headers.items():
         if key != "Set-Cookie" or not value.startswith("oa2=sf_v1a"):
@@ -59,6 +73,11 @@ def get_authentication_token(email, password):
     return token
 
 
+# Collection and album data is obtained via the below endpoint. Among
+# other information, it contains a general overview of all photo containers,
+# such as IDs, user-created names, and creation dates. At a minimum, the album
+# IDs are needed to obtain a given album's photo information from the other
+# endpoint.
 def get_raw_collections(token):
     asset_connection.request(
         "GET",
@@ -76,6 +95,8 @@ def get_raw_collections(token):
     return json.loads(response.read())["entityMap"]
 
 
+# Per-album photo data is obtained via the below endpoint, including a link to
+# every image's original resolution file on Snapfish servers.
 def get_raw_photos(token, album_id):
     asset_connection.request(
         "GET",
