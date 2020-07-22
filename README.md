@@ -53,3 +53,9 @@ cwd
 -   Because Snapfish album names can contain characters that are invalid in file
     paths, folders created for each album are named using a normalized version
     of the album name.
+
+## Disclaimer
+
+Snapfish' endpoints are subject to change at any time. Should they change, it is
+likely snapfish-shark will stop working until it is updated. If errors arise,
+please [create an issue](https://github.com/slbls/snapfish-shark/issues/new).
