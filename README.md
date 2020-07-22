@@ -19,11 +19,11 @@ optional arguments:
 
 ### Terminology
 
-| Term       | Definition                                                |
-| ---------- | --------------------------------------------------------- |
-| Collection | A set of albums from a given month in a given year.       |
-| Album      | A named collection of photos. Exists inside a collection. |
-| Photo      | A picture. Exists inside an album.                        |
+| Term       | Definition                                           |
+| ---------- | ---------------------------------------------------- |
+| Collection | A set of albums from a given month in a given year.  |
+| Album      | A named group of photos. Exists inside a collection. |
+| Photo      | A picture. Exists inside an album.                   |
 
 ### Output
 
