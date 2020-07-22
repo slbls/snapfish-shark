@@ -19,11 +19,6 @@ def get_valid_filename(value):
     return re.sub(r"[-\s]+", "-", value).strip("-_")
 
 
-def set_file_timestamp(path, timestamp):
-    setctime(path, timestamp)
-    os.utime(path, (timestamp, timestamp))
-
-
 token = None
 connection = HTTPSConnection("assets.snapfish.com")
 
@@ -128,9 +123,6 @@ def download_assets():
             for photo in photos:
                 photo_file_path = photo["file_path"]
                 photo_date = photo["date"]
-                if os.path.isfile(photo_file_path):
-                    set_file_timestamp(photo_file_path, photo_date)
-                    continue
 
                 try:
                     urllib.request.urlretrieve(
@@ -138,8 +130,6 @@ def download_assets():
                     )
                 except HTTPError:
                     pass
-                else:
-                    set_file_timestamp(photo_file_path, photo_date)
 
             if i == albums_count - 1:
                 print("\n")
