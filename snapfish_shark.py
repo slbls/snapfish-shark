@@ -18,18 +18,15 @@ def get_valid_filename(value):
     return re.sub(r"(?u)[^-\w.]", "", value)
 
 
-authentication_connection = HTTPSConnection("www.snapfish.com")
-asset_connection = HTTPSConnection("assets.snapfish.com")
-
-
 def get_authentication_token(email, password):
+    connection = HTTPSConnection("www.snapfish.com")
     # submit=true and componentID=1395868004571 (URL parameters), and
     # "iwPreActions:" "submit" and "next": "https://www.snapfish.com/home"
     # (request headers) are all required outside of an email and password for
     # the login request to work. All login requests seem to use the same
     # component ID. Where said ID originates from and what exactly it
     # represents is a mystery for another day.
-    authentication_connection.request(
+    connection.request(
         "POST",
         "/loginto?submit=true&componentID=1395868004571",
         urllib.parse.urlencode(
@@ -43,7 +40,7 @@ def get_authentication_token(email, password):
         {"Content-Type": "application/x-www-form-urlencoded",},
     )
 
-    response = authentication_connection.getresponse()
+    response = connection.getresponse()
 
     # A response status other than 302 indicates the login did not contain the
     # necessary information to fetch an authentication token or that the request
@@ -78,14 +75,15 @@ def get_authentication_token(email, password):
 # IDs are needed to obtain a given album's photo information from the other
 # endpoint.
 def get_collections(token):
-    asset_connection.request(
+    connection = HTTPSConnection("assets.snapfish.com")
+    connection.request(
         "GET",
         "/pict/v2/collection/monthIndex?limit=0&skip=0&projection=createDate,assetType,files,assetIdList,userTags,updateDate,systemTags",
         None,
         {"access_token": token},
     )
 
-    response = asset_connection.getresponse()
+    response = connection.getresponse()
     if not response.status == 200:
         raise RuntimeError(
             f"error connecting to Snapfish when fetching collection and album information (HTTP {response.status} {response.reason})."
@@ -97,14 +95,15 @@ def get_collections(token):
 # Album-specific photo data is obtained via the below endpoint, including a link to
 # every image's original resolution file on Snapfish servers.
 def get_photos(token, album_id):
-    asset_connection.request(
+    connection = HTTPSConnection("assets.snapfish.com")
+    connection.request(
         "GET",
         f"/pict/v2/collection/{album_id}/assets?assetType=PICTURE",
         None,
         {"access_token": token},
     )
 
-    response = asset_connection.getresponse()
+    response = connection.getresponse()
     if not response.status == 200:
         raise RuntimeError(
             f"error connecting to Snapfish when fetching photo information (HTTP {response.status} {response.reason})."
@@ -130,7 +129,6 @@ def download(token):
 
         for i, album in enumerate(albums):
             album_name = album["userTags"][0]["value"]
-            album_id = album["id"]
 
             # Snapfish album names can contain invalid path characters, so
             # they must be normalized before being made into directories.
@@ -142,22 +140,27 @@ def download(token):
                 album_directory, exist_ok=True,
             )
 
-            photos = tqdm(get_photos(token, album_id))
+            photos = tqdm(get_photos(token, album["id"]))
             photos.set_description(album_name)
 
             failed_downloads = 0
             for photo in photos:
+                photo_path = (
+                    f"""{os.path.join(album_directory, str(photo["id"]))}.jpg"""
+                )
+                if os.path.isfile(photo_path):
+                    continue
+
                 try:
                     # Photos have two files associated with them: a low-res file
                     # (used by Snapfish for thumbnails and quick previews) and
                     # a high-res file (the original, full size image).
                     urllib.request.urlretrieve(
-                        photo["files"][0]["url"],
-                        f"""{os.path.join(album_directory, str(photo["id"]))}.jpg""",
+                        photo["files"][0]["url"], photo_path,
                     )
                 except HTTPError:
                     failed_downloads += 1
-                    photos.set_description(f"{album_id} ({failed_downloads} failed)")
+                    photos.set_description(f"{album_name} ({failed_downloads} failed)")
 
             if i == albums_count - 1:
                 print("\n")
