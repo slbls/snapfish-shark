@@ -6,7 +6,6 @@ import re
 from http.client import HTTPSConnection
 from urllib.error import HTTPError
 from argparse import ArgumentParser
-from datetime import datetime
 from functools import partial
 from tqdm import tqdm as std_tqdm
 from enum import Enum
@@ -78,7 +77,7 @@ def get_authentication_token(email, password):
 # such as IDs, user-created names, and creation dates. At a minimum, the album
 # IDs are needed to obtain a given album's photo information from the other
 # endpoint.
-def get_raw_collections(token):
+def get_collections(token):
     asset_connection.request(
         "GET",
         "/pict/v2/collection/monthIndex?limit=0&skip=0&projection=createDate,assetType,files,assetIdList,userTags,updateDate,systemTags",
@@ -95,9 +94,9 @@ def get_raw_collections(token):
     return json.loads(response.read())["entityMap"]
 
 
-# Per-album photo data is obtained via the below endpoint, including a link to
+# Album-specific photo data is obtained via the below endpoint, including a link to
 # every image's original resolution file on Snapfish servers.
-def get_raw_photos(token, album_id):
+def get_photos(token, album_id):
     asset_connection.request(
         "GET",
         f"/pict/v2/collection/{album_id}/assets?assetType=PICTURE",
@@ -114,93 +113,45 @@ def get_raw_photos(token, album_id):
     return json.loads(response.read())["entities"]
 
 
-def get_asset_information(token):
-    raw_collections = get_raw_collections(token)
-    raw_collections_items = tqdm(raw_collections.items())
-    raw_collections_items.set_description("Fetching asset information")
+def download(token):
+    collections = get_collections(token)
 
-    collections = []
-    for key, value in raw_collections_items:
-        collection = {
-            "name": key,
-            # Collections don't have an actual date associated with them. In
-            # place of that, their name (which is always a year-month string) is
-            # parsed into a timestamp.
-            "date": datetime.strptime(key, "%Y-%m").timestamp(),
-            "albums": [],
-        }
-
+    for collection_name, collection in collections.items():
         # Albums are also referred to as collections by Snapfish, hence why
         # they are accessed through a "collectionList" property that exists on
         # each collection. For the sake of clarity, this project refers to a
         # year-month set of albums as a collection and an album as an album.
-        raw_albums = value["collectionList"]
-        for raw_album in raw_albums:
-            album_name = raw_album["userTags"][0]["value"]
-            album = {
-                "id": raw_album["id"],
-                "name": album_name,
-                # Raw album dates are stored as JavaScript timestamps, which are
-                # represented in milliseconds. They are divided by 1000 to get a
-                # POSIX timestamp, which is represented in seconds.
-                "date": raw_album["createDate"] / 1000,
-                # Snapfish album names can contain invalid path characters, so
-                # they must be normalized before being made into directories.
-                "directory_path": os.path.join(
-                    collection["name"], get_valid_filename(album_name)
-                ),
-                "photos": [],
-            }
-
-            raw_photos = get_raw_photos(token, album["id"])
-            for raw_photo in raw_photos:
-                photo_id = raw_photo["id"]
-                album["photos"].append(
-                    {
-                        "id": photo_id,
-                        "link": raw_photo["files"][0]["url"],
-                        # Not all photos have date taken information, often
-                        # existing as a value of 0 or None. Resultantly, the
-                        # photo's date falls back to the album's creation date.
-                        "date": raw_photo["dateTaken"] / 1000
-                        if raw_photo["dateTaken"]
-                        else album["date"],
-                        "file_path": f"""{os.path.join(
-                            album["directory_path"], str(photo_id)
-                        )}.jpg""",
-                    }
-                )
-
-            collection["albums"].append(album)
-
-        collections.append(collection)
-
-    return collections
-
-
-def download_assets(token):
-    collections = get_asset_information(token)
-
-    for collection in collections:
-        collection_name = collection["name"]
-        albums = collection["albums"]
+        albums = collection["collectionList"]
         albums_count = len(albums)
+
         print(f"""{collection_name} ({albums_count} albums)""")
 
         os.makedirs(collection_name, exist_ok=True)
 
         for i, album in enumerate(albums):
-            os.makedirs(album["directory_path"], exist_ok=True)
+            album_name = album["userTags"][0]["value"]
 
-            photos = tqdm(album["photos"])
-            photos.set_description(f"""{album["name"]}""")
+            # Snapfish album names can contain invalid path characters, so
+            # they must be normalized before being made into directories.
+            album_directory = os.path.join(
+                collection_name, get_valid_filename(album_name)
+            )
+
+            os.makedirs(
+                album_directory, exist_ok=True,
+            )
+
+            photos = tqdm(get_photos(token, album["id"]))
+            photos.set_description(album_name)
 
             for photo in photos:
-                photo_file_path = photo["file_path"]
-
                 try:
+                    # Photos have two files associated with them: a low-res file
+                    # (used by Snapfish for thumbnails and quick previews) and
+                    # a high-res file (the original, full size image).
                     urllib.request.urlretrieve(
-                        photo["link"], photo_file_path,
+                        photo["files"][0]["url"],
+                        f"""{os.path.join(album_directory, str(photo["id"]))}.jpg""",
                     )
                 except HTTPError:
                     pass
@@ -221,4 +172,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     tqdm = partial(std_tqdm, dynamic_ncols=True)
 
-    download_assets(get_authentication_token(args.email, args.password))
+    download(get_authentication_token(args.email, args.password))
