@@ -130,6 +130,7 @@ def download(token):
 
         for i, album in enumerate(albums):
             album_name = album["userTags"][0]["value"]
+            album_id = album["id"]
 
             # Snapfish album names can contain invalid path characters, so
             # they must be normalized before being made into directories.
@@ -141,9 +142,10 @@ def download(token):
                 album_directory, exist_ok=True,
             )
 
-            photos = tqdm(get_photos(token, album["id"]))
+            photos = tqdm(get_photos(token, album_id))
             photos.set_description(album_name)
 
+            failed_downloads = 0
             for photo in photos:
                 try:
                     # Photos have two files associated with them: a low-res file
@@ -154,7 +156,8 @@ def download(token):
                         f"""{os.path.join(album_directory, str(photo["id"]))}.jpg""",
                     )
                 except HTTPError:
-                    pass
+                    failed_downloads += 1
+                    photos.set_description(f"{album_id} ({failed_downloads} failed)")
 
             if i == albums_count - 1:
                 print("\n")
