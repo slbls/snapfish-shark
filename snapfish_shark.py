@@ -4,7 +4,7 @@ import json
 import os
 import re
 from http.client import HTTPSConnection
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from argparse import ArgumentParser
 from functools import partial
 from tqdm import tqdm as std_tqdm
@@ -151,14 +151,24 @@ def download(token):
                 if os.path.isfile(photo_path):
                     continue
 
-                try:
-                    # Photos have two files associated with them: a low-res file
-                    # (used by Snapfish for thumbnails and quick previews) and
-                    # a high-res file (the original, full size image).
-                    urllib.request.urlretrieve(
-                        photo["files"][0]["url"], photo_path,
-                    )
-                except HTTPError:
+                photo_url = photo["files"][0]["url"]
+                photo_url_start = photo_url.split(".sf-cdn.com")[0]
+                download_attempts = 0
+                for i in range(1, 5):
+                    try:
+                        # Photos have two files associated with them: a low-res file
+                        # (used by Snapfish for thumbnails and quick previews) and
+                        # a high-res file (the original, full size image).
+                        urllib.request.urlretrieve(
+                            photo_url.replace(
+                                photo_url_start, photo_url_start[:-1] + str(i)
+                            ),
+                            photo_path,
+                        )
+                    except (HTTPError, URLError):
+                        download_attempts += 1
+
+                if download_attempts == 4:
                     failed_downloads += 1
                     photos.set_description(f"{album_name} ({failed_downloads} failed)")
 
