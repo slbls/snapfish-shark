@@ -179,7 +179,7 @@ def download(token):
                     except (HTTPError, URLError):
                         download_attempts += 1
 
-                if download_attempts == 4:
+                if download_attempts == 5:
                     failed_downloads += 1
                     photos.set_description(f"{album_name} ({failed_downloads} failed)")
 
