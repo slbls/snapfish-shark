@@ -159,7 +159,7 @@ def download(token):
                 ).netloc.split(".sf-cdn.com")[0]
                 download_attempts = 0
 
-                for i in range(5):
+                while download_attempts != 5:
                     try:
                         # Photos have two files associated with them: a low-res file
                         # (used by Snapfish for thumbnails and quick previews) and
@@ -172,12 +172,15 @@ def download(token):
                                     if photo_url_domain_instance[-1:].isdigit()
                                     else photo_url_domain_instance
                                 )
-                                + (str(i) if i != 0 else ""),
+                                + (str(download_attempts) if download_attempts != 0 else ""),
                             )
                         ) as response, open(photo_path, "wb") as file:
                             shutil.copyfileobj(response, file)
+                            break
                     except (HTTPError, URLError):
                         download_attempts += 1
+                    except ConnectionResetError:
+                        pass
 
                 if download_attempts == 5:
                     failed_downloads += 1
