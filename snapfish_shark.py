@@ -1,5 +1,6 @@
 import urllib.request
 import urllib.parse
+import shutil
 import json
 import os
 import re
@@ -152,19 +153,28 @@ def download(token):
                     continue
 
                 photo_url = photo["files"][0]["url"]
-                photo_url_start = photo_url.split(".sf-cdn.com")[0]
+                photo_url_domain_instance = urllib.parse.urlparse(
+                    photo_url
+                ).netloc.split(".sf-cdn.com")[0]
                 download_attempts = 0
-                for i in range(1, 5):
+
+                for i in [j for j in range(5) if j != 2]:
                     try:
                         # Photos have two files associated with them: a low-res file
                         # (used by Snapfish for thumbnails and quick previews) and
                         # a high-res file (the original, full size image).
-                        urllib.request.urlretrieve(
+                        with urllib.request.urlopen(
                             photo_url.replace(
-                                photo_url_start, photo_url_start[:-1] + str(i)
-                            ),
-                            photo_path,
-                        )
+                                photo_url_domain_instance,
+                                (
+                                    photo_url_domain_instance[:-1]
+                                    if photo_url_domain_instance[-1:].isdigit()
+                                    else photo_url_domain_instance
+                                )
+                                + (str(i) if i != 0 else ""),
+                            )
+                        ) as response, open(photo_path, "wb") as file:
+                            shutil.copyfileobj(response, file)
                     except (HTTPError, URLError):
                         download_attempts += 1
 
