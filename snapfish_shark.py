@@ -2,6 +2,7 @@ import urllib.request
 import urllib.parse
 import shutil
 import json
+import string
 import os
 import re
 from http.client import HTTPSConnection
