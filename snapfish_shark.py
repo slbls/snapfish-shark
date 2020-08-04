@@ -177,17 +177,6 @@ def download(token):
                         ) as response, open(photo_path, "wb") as file:
                             shutil.copyfileobj(response, file)
                     except (HTTPError, URLError):
-                        print(
-                            photo_url.replace(
-                                photo_url_domain_instance,
-                                (
-                                    photo_url_domain_instance[:-1]
-                                    if photo_url_domain_instance[-1:].isdigit()
-                                    else photo_url_domain_instance
-                                )
-                                + (str(i) if i != 0 else ""),
-                            )
-                        )
                         download_attempts += 1
 
                 if download_attempts == 4:
