@@ -31,6 +31,10 @@ def to_exif_date_string(timestamp):
     return datetime.fromtimestamp(timestamp).strftime("%Y:%m:%d %H:%M:%S")
 
 
+def to_datetime_from_exif_date_string(string):
+    return datetime.strptime(string, "%Y:%m:%d %H:%M:%S").timestamp()
+
+
 def get_authentication_token(email, password):
     connection = HTTPSConnection("www.snapfish.com")
     # submit=true and componentID=1395868004571 (URL parameters), and
@@ -172,84 +176,94 @@ def download(token):
                 photo_path = (
                     f"""{os.path.join(album_directory, str(photo["id"]))}.jpg"""
                 )
-                if os.path.isfile(photo_path):
-                    continue
 
-                photo_url = photo["files"][0]["url"]
-                photo_url_domain_instance = urllib.parse.urlparse(
-                    photo_url
-                ).netloc.split(".sf-cdn.com")[0]
-                download_attempts = 0
+                if not os.path.isfile(photo_path):
+                    photo_url = photo["files"][0]["url"]
+                    photo_url_domain_instance = urllib.parse.urlparse(
+                        photo_url
+                    ).netloc.split(".sf-cdn.com")[0]
+                    download_attempts = 0
 
-                while download_attempts != 5:
-                    try:
-                        # Photos have two files associated with them: a low-res file
-                        # (used by Snapfish for thumbnails and quick previews) and
-                        # a high-res file (the original, full size image).
-                        with urllib.request.urlopen(
-                            photo_url.replace(
-                                photo_url_domain_instance,
-                                (
-                                    photo_url_domain_instance[:-1]
-                                    if photo_url_domain_instance[-1:].isdigit()
-                                    else photo_url_domain_instance
+                    while download_attempts != 5:
+                        try:
+                            # Photos have two files associated with them: a low-res file
+                            # (used by Snapfish for thumbnails and quick previews) and
+                            # a high-res file (the original, full size image).
+                            with urllib.request.urlopen(
+                                photo_url.replace(
+                                    photo_url_domain_instance,
+                                    (
+                                        photo_url_domain_instance[:-1]
+                                        if photo_url_domain_instance[-1:].isdigit()
+                                        else photo_url_domain_instance
+                                    )
+                                    + (
+                                        str(download_attempts)
+                                        if download_attempts != 0
+                                        else ""
+                                    ),
                                 )
-                                + (
-                                    str(download_attempts)
-                                    if download_attempts != 0
-                                    else ""
-                                ),
-                            )
-                        ) as response, open(photo_path, "wb") as file:
-                            shutil.copyfileobj(response, file)
-                            break
-                    except (HTTPError, URLError):
-                        download_attempts += 1
-                    except ConnectionResetError:
-                        pass
+                            ) as response, open(photo_path, "wb") as file:
+                                shutil.copyfileobj(response, file)
+                                break
+                        except (HTTPError, URLError):
+                            download_attempts += 1
+                        except ConnectionResetError:
+                            pass
 
-                if download_attempts == 5:
-                    failed_downloads += 1
-                    photos.set_description(f"{album_name} ({failed_downloads} failed)")
-                    continue
+                    if download_attempts == 5:
+                        failed_downloads += 1
+                        photos.set_description(
+                            f"{album_name} ({failed_downloads} failed)"
+                        )
+                        continue
 
                 exif = piexif.load(photo_path)
-                if piexif.ExifIFD.DateTimeOriginal in exif["Exif"]:
-                    continue
 
                 photo_date_taken = photo["dateTaken"]
+                photo_create_date = photo["createDate"]
                 photo_tags = photo["exifTags"]
-                exif_date_time_original = None
+
+                available_datetimes = []
+                if piexif.ExifIFD.DateTimeOriginal in exif["Exif"]:
+                    available_datetimes.append(
+                        to_datetime_from_exif_date_string(
+                            exif["Exif"][piexif.ExifIFD.DateTimeOriginal].decode(
+                                "utf-8"
+                            )
+                        )
+                    )
 
                 if photo_date_taken:
-                    exif_date_time_original = to_exif_date_string(
-                        photo_date_taken / 1000
-                    )
-                elif photo_tags:
-                    try:
-                        exif_date_time_original = next(
-                            photo_tags[tag]
-                            for tag in [
-                                "exif:DateTimeOrigianl",
-                                "date",
-                                "meta:creation-date",
-                                "Creation-Date",
-                                "Date/Time",
-                                "Date/Time Original",
-                                "Date/Time Digitized",
-                            ]
-                            if tag in photo_tags and photo_tags[tag]
-                        ).replace("T", " ")
-                    except StopIteration:
-                        pass
+                    available_datetimes.append(photo_date_taken / 1000)
 
-                if not exif_date_time_original:
-                    exif_date_time_original = to_exif_date_string(
-                        photo["createDate"] / 1000
-                    )
+                if photo_tags:
+                    available_datetimes = available_datetimes + [
+                        to_datetime_from_exif_date_string(
+                            photo_tags[tag].replace("T", " ")
+                        )
+                        for tag in [
+                            "exif:DateTimeOriginal",
+                            "date",
+                            "meta:creation-date",
+                            "Creation-Date",
+                            "Date/Time",
+                            "Date/Time Original",
+                            "Date/Time Digitized",
+                            "Last-Save-Date",
+                            "meta:save-date",
+                        ]
+                        if tag in photo_tags and photo_tags[tag]
+                    ]
 
-                exif["Exif"][piexif.ExifIFD.DateTimeOriginal] = exif_date_time_original
-                piexif.insert(piexif.dump(exif), photo_path)
+                if photo_create_date:
+                    available_datetimes.append(photo_create_date / 1000)
+
+                if available_datetimes:
+                    exif["Exif"][piexif.ExifIFD.DateTimeOriginal] = to_exif_date_string(
+                        min(available_datetimes)
+                    )
+                    piexif.insert(piexif.dump(exif), photo_path)
 
             if i == albums_count - 1:
                 print("\n")
