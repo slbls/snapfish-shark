@@ -5,6 +5,8 @@ import json
 import string
 import os
 import re
+import piexif
+from datetime import datetime
 from http.client import HTTPSConnection
 from urllib.error import HTTPError, URLError
 from argparse import ArgumentParser
@@ -23,6 +25,10 @@ def get_valid_filename(value):
     return "".join(
         character for character in value if character in valid_characters
     ).strip()
+
+
+def to_exif_date_string(timestamp):
+    return datetime.fromtimestamp(timestamp).strftime("%Y:%m:%d %H:%M:%S")
 
 
 def get_authentication_token(email, password):
@@ -205,6 +211,45 @@ def download(token):
                 if download_attempts == 5:
                     failed_downloads += 1
                     photos.set_description(f"{album_name} ({failed_downloads} failed)")
+                    continue
+
+                exif = piexif.load(photo_path)
+                if piexif.ExifIFD.DateTimeOriginal in exif["Exif"]:
+                    continue
+
+                photo_date_taken = photo["dateTaken"]
+                photo_tags = photo["exifTags"]
+                exif_date_time_original = None
+
+                if photo_date_taken:
+                    exif_date_time_original = to_exif_date_string(
+                        photo_date_taken / 1000
+                    )
+                elif photo_tags:
+                    try:
+                        exif_date_time_original = next(
+                            photo_tags[tag]
+                            for tag in [
+                                "exif:DateTimeOrigianl",
+                                "date",
+                                "meta:creation-date",
+                                "Creation-Date",
+                                "Date/Time",
+                                "Date/Time Original",
+                                "Date/Time Digitized",
+                            ]
+                            if tag in photo_tags and photo_tags[tag]
+                        ).replace("T", " ")
+                    except StopIteration:
+                        pass
+
+                if not exif_date_time_original:
+                    exif_date_time_original = to_exif_date_string(
+                        photo["createDate"] / 1000
+                    )
+
+                exif["Exif"][piexif.ExifIFD.DateTimeOriginal] = exif_date_time_original
+                piexif.insert(piexif.dump(exif), photo_path)
 
             if i == albums_count - 1:
                 print("\n")
