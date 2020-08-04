@@ -15,8 +15,8 @@ from enum import Enum
 # Sourced from Django
 # https://github.com/django/django/blob/master/django/utils/text.py#L222
 def get_valid_filename(value):
-    value = str(value).strip().replace(" ", "_")
-    return re.sub(r"(?u)[^-\w.]", "", value)
+    valid_characters = frozenset("-_.() %s%s" % (string.ascii_letters, string.digits))
+    return "".join(character for character in value if character in valid_characters)
 
 
 def get_authentication_token(email, password):
