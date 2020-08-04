@@ -13,11 +13,16 @@ from tqdm import tqdm as std_tqdm
 from enum import Enum
 
 
+email = None
+password = None
+
 # Sourced from Django
 # https://github.com/django/django/blob/master/django/utils/text.py#L222
 def get_valid_filename(value):
     valid_characters = frozenset("-_.() %s%s" % (string.ascii_letters, string.digits))
-    return "".join(character for character in value if character in valid_characters)
+    return "".join(
+        character for character in value if character in valid_characters
+    ).strip()
 
 
 def get_authentication_token(email, password):
@@ -142,7 +147,18 @@ def download(token):
                 album_directory, exist_ok=True,
             )
 
-            photos = tqdm(get_photos(token, album["id"]))
+            photos = None
+            while not photos:
+                try:
+                    photos = get_photos(token, album["id"])
+                except RuntimeError as error:
+                    if "401 Unauthorized" in str(error):
+                        token = get_authentication_token(email, password)
+                        continue
+
+                    raise error
+
+            photos = tqdm(photos)
             photos.set_description(album_name)
 
             failed_downloads = 0
@@ -172,7 +188,11 @@ def download(token):
                                     if photo_url_domain_instance[-1:].isdigit()
                                     else photo_url_domain_instance
                                 )
-                                + (str(download_attempts) if download_attempts != 0 else ""),
+                                + (
+                                    str(download_attempts)
+                                    if download_attempts != 0
+                                    else ""
+                                ),
                             )
                         ) as response, open(photo_path, "wb") as file:
                             shutil.copyfileobj(response, file)
@@ -200,6 +220,9 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    email = args.email
+    password = args.password
+
     tqdm = partial(std_tqdm, dynamic_ncols=True)
 
-    download(get_authentication_token(args.email, args.password))
+    download(get_authentication_token(email, password))
