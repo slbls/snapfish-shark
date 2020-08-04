@@ -219,20 +219,13 @@ def download(token):
                         continue
 
                 exif = piexif.load(photo_path)
+                if piexif.ExifIFD.DateTimeOriginal in exif["Exif"]:
+                    continue
 
                 photo_date_taken = photo["dateTaken"]
                 photo_create_date = photo["createDate"]
                 photo_tags = photo["exifTags"]
-
                 available_datetimes = []
-                if piexif.ExifIFD.DateTimeOriginal in exif["Exif"]:
-                    available_datetimes.append(
-                        to_datetime_from_exif_date_string(
-                            exif["Exif"][piexif.ExifIFD.DateTimeOriginal].decode(
-                                "utf-8"
-                            )
-                        )
-                    )
 
                 if photo_date_taken:
                     available_datetimes.append(photo_date_taken / 1000)
