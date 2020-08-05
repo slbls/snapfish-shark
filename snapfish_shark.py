@@ -166,7 +166,7 @@ def download(token):
                         token = get_authentication_token(email, password)
                         continue
 
-                    raise error
+                    raise
 
             photos = tqdm(photos)
             photos.set_description(album_name)
@@ -219,7 +219,11 @@ def download(token):
                         continue
 
                 exif = piexif.load(photo_path)
-                if piexif.ExifIFD.DateTimeOriginal in exif["Exif"]:
+                if (
+                    piexif.ExifIFD.DateTimeOriginal in exif["Exif"]
+                    and exif["Exif"][piexif.ExifIFD.DateTimeOriginal].decode("ascii")
+                    != "0000:00:00 00:00:00"
+                ):
                     continue
 
                 photo_date_taken = photo["dateTaken"]
