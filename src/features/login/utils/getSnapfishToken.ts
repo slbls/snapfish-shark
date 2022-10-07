@@ -28,7 +28,7 @@ export const getSnapfishToken = async ({
 }: GetSnapfishTokenParams) => {
 	const response = await fetch(
 		// These two query parameters are required for the request to be successful.
-		`${SNAPFISH_LOGIN_URL}?=submit=true&componentID=1395868004571`,
+		`${SNAPFISH_LOGIN_URL}?submit=true&componentID=1395868004571`,
 		{
 			method: "POST",
 			body: new URLSearchParams({
