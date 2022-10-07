@@ -42,19 +42,14 @@ export const getSnapfishToken = async ({
 		}
 	);
 
-	const [, rawToken] = Array.from(response.headers).find(
-		([key, value]) =>
-			key.toLowerCase() === SET_COOKIE_HEADER_NAME &&
-			value.startsWith(SNAPFISH_OAUTH_COOKIE_NAME)
-	);
-
-	if (!rawToken) {
+	const setCookieHeaderValue = response.headers.get(SET_COOKIE_HEADER_NAME);
+	if (!setCookieHeaderValue) {
 		throw Error(
 			`Unable to get authentication token: no "${SET_COOKIE_HEADER_NAME}" header.`
 		);
 	}
 
-	const firstCookie = rawToken.split(COOKIE_SEPARATOR_CHARACTER)[0];
+	const firstCookie = setCookieHeaderValue.split(COOKIE_SEPARATOR_CHARACTER)[0];
 	const token = firstCookie.replace(
 		`${SNAPFISH_OAUTH_COOKIE_NAME}${COOKIE_KEY_VALUE_SEPARATOR_CHARACTER}`,
 		"OAuth "
