@@ -1,11 +1,10 @@
 import { SNAPFISH_LOGIN_URL } from "@/config";
+import { isSnapfishAuthenticated } from "@/__utils__/snapfish-authentication";
 import { rest, RestHandler } from "msw";
 
 export const handlers: readonly RestHandler[] = [
 	rest.post(SNAPFISH_LOGIN_URL, (_request, response, context) => {
-		const isAuthenticated =
-			sessionStorage.getItem("is-authenticated") === "true";
-		if (!isAuthenticated) {
+		if (!isSnapfishAuthenticated()) {
 			// Any status code other than 200 indicates an error wherein the user is
 			// not authenticated.
 			return response(context.status(200));

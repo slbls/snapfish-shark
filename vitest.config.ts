@@ -13,7 +13,7 @@ export default defineConfig({
 	},
 	test: {
 		setupFiles: "vitest.setup.ts",
-		exclude: [...configDefaults.exclude, "**/e2e/**"],
+		exclude: [...configDefaults.exclude, "**/__utils__/**", "**/e2e/**"],
 		environment: "jsdom",
 	},
 });
