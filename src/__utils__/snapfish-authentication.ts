@@ -1,5 +1,5 @@
 const sessionStorageKey =
-	process.env.VITE_SESSION_STORAGE_SNAPFISH_AUTHENTICATION_KEY;
+	process.env.VITE_SNAPFISH_AUTHENTICATION_SESSION_STORAGE_KEY;
 
 export const isSnapfishAuthenticated = () =>
 	sessionStorage.getItem(sessionStorageKey) === "true";
