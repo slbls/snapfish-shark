@@ -6,15 +6,22 @@ import { afterAll, afterEach, beforeAll, expect } from "vitest";
 
 expect.extend(matchers);
 
-// Fetch is not available in the LTS version of Node, so this polyfills it,
-// allowing for requests to be intercepted and mocked by MSW.
-globalThis.fetch = fetch;
+const originalFetch = globalThis.fetch;
 
-beforeAll(() => server.listen());
+beforeAll(() => {
+	// Fetch is not available in the LTS version of Node, so this polyfills it,
+	// allowing for requests to be intercepted and mocked by MSW.
+	globalThis.fetch = fetch;
+
+	server.listen();
+});
 
 afterEach(() => {
 	server.resetHandlers();
 	cleanup();
 });
 
-afterAll(() => server.close());
+afterAll(() => {
+	globalThis.fetch = originalFetch;
+	server.close();
+});
