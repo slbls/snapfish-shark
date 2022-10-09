@@ -6,5 +6,5 @@ type AppProviderProps = {
 };
 
 export const AppProvider = ({ children }: AppProviderProps) => (
-	<ChakraProvider></ChakraProvider>
+	<ChakraProvider>{children}</ChakraProvider>
 );
