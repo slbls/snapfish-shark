@@ -1,5 +1,11 @@
 # snapfish-shark
 
+---
+
+⚠️ snapfish-shark has been archived as Snapfish continues to change, breaking approaches used.
+
+---
+
 🦈 Bare-bones Snapfish photo downloader.
 
 ## Usage
